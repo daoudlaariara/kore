@@ -139,7 +139,7 @@ def main():
                 pos3 = ut.n + ut.N1*np.where(allbot==l)[0][0]
                 row3 = np.arange(pos3+2,pos3+ut.N1)
                 col3 = np.zeros(ut.N1-2)
-                bdat3 = ut.marc_tide(ut.wf,3,par.m,'bot',ut.N1, par.ricb, ut.rcmb)*par.forcing_amplitude
+                bdat3 = ut.marc_tide(ut.wf,3,par.m,'bot',ut.N1, par.ricb, ut.rcmb)*par.forcing_amplitude_cmb
                 tmp = [bdat3, row3, col3]
                 blist = tmp
 
@@ -147,7 +147,7 @@ def main():
                 pos2 = ut.N1*np.where(alltop==l)[0][0]
                 row2 = np.arange(pos2+4,pos2+ut.N1)
                 col2 = np.zeros(ut.N1-4)
-                bdat2 = ut.marc_tide(ut.wf,2,par.m,'top',ut.N1, par.ricb, ut.rcmb)*par.forcing_amplitude
+                bdat2 = ut.marc_tide(ut.wf,2,par.m,'top',ut.N1, par.ricb, ut.rcmb)*par.forcing_amplitude_cmb
                 tmp = [bdat2, row2, col2]
                 for q in [0,1,2]:
                     blist[q]= np.concatenate((blist[q], tmp[q]))
@@ -157,7 +157,7 @@ def main():
                     pos1 = ut.n + ut.N1*np.where(allbot==l)[0][0]
                     row1 = np.arange(pos1+2,pos1+ut.N1)
                     col1 = np.zeros(ut.N1-2)
-                    bdat1 = ut.marc_tide(ut.wf,1,par.m,'bot',ut.N1, par.ricb, ut.rcmb)*par.forcing_amplitude
+                    bdat1 = ut.marc_tide(ut.wf,1,par.m,'bot',ut.N1, par.ricb, ut.rcmb)*par.forcing_amplitude_cmb
                     tmp = [bdat1, row1, col1]
                     for q in [0,1,2]:
                         blist[q]= np.concatenate((blist[q], tmp[q]))
@@ -390,7 +390,7 @@ def main():
             else:
 
                 print('This boundary flow forcing needs symm = 1 and m = 2 and bci = 1')
-
+ 
     elif par.forcing == 10: # --------------------------------------------------------------- m=2 radial velocity forcing
 
         # Order m radial velocity forcing at the icb or cmb, l=m poloidal scalar only, equatorially symmetric.
@@ -425,6 +425,49 @@ def main():
 
                 print('This boundary flow forcing needs symm = 1')
 
+    elif par.forcing == 11: # ------------- Eccentricity or Obliquity tide forcing, (m, symm) = {(0, 1), (1, -1), (2, 1)}, l=2 radial velocity forcing
+            if rank == 0:
+                compute = 0
+
+                if par.bco == 1 and par.bci==1 : 
+                    if par.m == 0 and par.symm == 1 : 
+                        print('------------------------------------------------------------------')
+                        print(' Eccentricity tide (l,m)=(2,0) radial velocity forcing (symmetric)')
+                        print('------------------------------------------------------------------')
+                        compute = 1
+                    elif par.m == 1 and par.symm == -1 : 
+                        print('-------------------------------------------------------------------')
+                        print(' Obliquity tide (l,m)=(2,1) radial velocity forcing (antisymmetric)')
+                        print('-------------------------------------------------------------------')
+                        compute = 1
+                    elif par.m == 2 and par.symm == 1 : 
+                        print('------------------------------------------------------------------')
+                        print(' Eccentricity tide (l,m)=(2,2) radial velocity forcing (symmetric)')
+                        print('------------------------------------------------------------------')
+                        compute = 1
+                    else : 
+                        print('This boundary flow forcing needs (m, symm) = (0, 1) or (1, -1) or (2, 1)')
+                else : 
+                    print("Forced boundary flow needs bco = bci = 1")
+
+                if compute :
+                    l = 2   #
+                    L = l*(l+1)
+
+                    pos = ut.N1*np.where(alltop==l)[0][0]
+                    row = np.arange(pos,pos+2)
+                    col = np.zeros(2)
+                    
+                    # forcing amplitude is the radial velocity amplitude
+                    C_icb = par.forcing_amplitude_icb * par.ricb / L
+                    C_cmb = par.forcing_amplitude_cmb * ut.rcmb / L
+
+                    bdat = np.array([C_cmb, C_icb])
+
+                    B = ss.csr_matrix( ( bdat, (row,col) ), shape=(ut.sizmat,1) )
+                    np.savez('B_forced.npz', data=B.data, indices=B.indices, indptr=B.indptr, shape=B.shape)
+
+    
 
     elif par.forcing == 0: # ----------------------------------------------------------------------------------------------------- B matrix, no forcing (eigenvalue problem)
         '''
@@ -623,6 +666,7 @@ def main():
             iwu  = op.u(l,'u','upol',0)*1j*ut.wf
             cori = op.coriolis(l,'u','upol',0)[0]
             visc = op.viscous_diffusion(l,'u','upol',0)
+
             mtx = iwu + cori - visc
             # ------------------------------------------------------
             col = basecol + col0
@@ -633,13 +677,25 @@ def main():
             else:  # append to loc_list if it already exists
                 loc_list = ut.packit(loc_list, mtx, row, col)
 
+            if par.diffrot : 
+                for i in [-2,2]: 
+                    if l+i in ll_flo[0] :
+                        # Physics ---------------------------------------
+                        mtx = op.coriolis(l,'u','upol',i)
+                        # -----------------------------------------------
+                        col = basecol + col0 + mtx[1] * ut.N1
+                        loc_list = ut.packit( loc_list, mtx[0], row, col)
+
 
             # Toroidal velocity terms (utor) ---------------------------------------------------------------------------
             # ------------------------------------------------------------------------------- A, 2curl (section u), utor
             # ----------------------------------------------------------------------------------------------------------
             basecol = nb*ut.N1
 
-            for i in [-1,1]:
+            if par.diffrot : i_range = [-3,-1,1,3]
+            else : i_range = [-1,1]
+            
+            for i in i_range:
 
                 if l+i in ll_flo[1] :
 
@@ -736,7 +792,10 @@ def main():
             # ----------------------------------------------------------------------------------------------------------
             basecol = 0
 
-            for i in [ -1, 1 ]:
+            if par.diffrot : i_range = [-3,-1,1,3]
+            else : i_range = [-1,1]
+
+            for i in i_range:
 
                 if l+i in ll_flo[0]:  # for upol, so we use ll_flo[0]
 
@@ -760,6 +819,17 @@ def main():
             # --------------------------------------------
             col = basecol + col0
             loc_list = ut.packit( loc_list, mtx, row, col)
+
+            if par.diffrot : 
+                for i in [-2,2]: 
+
+                    if l+i in ll_flo[1] :
+
+                        # Physics ---------------------------------------
+                        mtx = op.coriolis(l,'v','utor',i)
+                        # -----------------------------------------------
+                        col = basecol + col0 + mtx[1] * ut.N1
+                        loc_list = ut.packit( loc_list, mtx[0], row, col)
 
 
             if par.magnetic == 1: # includes the Lorentz force
@@ -1041,11 +1111,11 @@ def main():
             # ----------------------------------------------------------------------------------------------------------
             basecol = (2*par.hydro+2*par.magnetic)*nb*ut.N1
 
-            # Physics --------------------------------------
+            # Physics ----------------------------
             iwtheta = 1j*ut.wf * op.theta(l,'h','', 0)
             diffus = op.thermal_diffusion(l,'h','',0)
             mtx = diffus - iwtheta
-            # ----------------------------------------------
+            # ------------------------------------
             col = basecol + col0
 
             if par.hydro == 0:
@@ -1065,7 +1135,9 @@ def main():
             # -------------------------------------------------- include thermal boundary conditions and update loc_list
             # ----------------------------------------------------------------------------------------------------------
             bc_theta_list = bc_theta_spherical( l )
-            if bc_theta_list is not None:
+            if (bc_theta_list is None): # no bc needed if zero thermal diffusivity
+                pass
+            else:
                 for q in [0,1,2]:
                     loc_list[q]= np.concatenate( ( loc_list[q], bc_theta_list[q] ) )
             # ----------------------------------------------------------------------------------------------------------
@@ -1299,10 +1371,15 @@ def bc_u_spherical(l,loc):
 
 def bc_theta_spherical(l):
     '''
-    Thermal boundary conditions for the temperature/entropy field.
+    Thermal boundary conditions for the temperature field,
+    either isothermal or constant heat flux.
     '''
 
-    if par.ThermaD > 0:
+    if par.Etherm==0:
+        
+        return None
+    
+    else:
 
         num_rows_h = int(1 + 1*np.sign(par.ricb))  # 1 if no IC, 2 if present
         #num_rows_h = 2
@@ -1330,14 +1407,10 @@ def bc_theta_spherical(l):
         row0 = 2*(par.hydro+par.magnetic)*ut.n + int(ut.N1*(l-ut.m_top)/2)
         col0 = row0
 
-        out = out.tocoo()
-        out2 = [out.data, out.row + row0, out.col + col0]
+    out = out.tocoo()
+    out2 = [out.data, out.row + row0, out.col + col0]
 
-        return out2
-
-    else:
-
-        pass
+    return out2
 
 
 

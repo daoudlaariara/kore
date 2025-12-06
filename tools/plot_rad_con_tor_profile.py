@@ -227,9 +227,9 @@ totK = K[solnum]
 
 k = np.argsort(r)
 tmp = ke
-print('Estimated kinetic energy:', np.trapz(tmp[k],r[k]))
+print('Estimated kinetic energy:', np.trapezoid(tmp[k],r[k]))
 print('   Actual kinetic energy:', K[solnum])
-
+totK_ = np.trapezoid(tmp[k],r[k])
 
 
 # plt.figure();
@@ -246,12 +246,17 @@ print('   Actual kinetic energy:', K[solnum])
 # plt.show()
 
 
-fig, ax = subplots(nrows=2,ncols=1,figsize=(5,5))
+fig, ax = plt.subplots(nrows=2,ncols=1,figsize=(5,5))
 
 ax[0].plot(r,ke/totK,'--',lw=1,color='gray', label=r'Total kinetic energy')
 ax[0].plot(r,krad/totK, label=r'Radial')
 ax[0].plot(r,kcon/totK, label=r'Consoidal')
 ax[0].plot(r,ktor/totK, label=r'Toroidal')
+
+#ax[0].plot(r,ke/totK_,'--',lw=1,color='gray', label=r'Total kinetic energy')
+#ax[0].plot(r,krad/totK_, label=r'Radial')
+#ax[0].plot(r,kcon/totK_, label=r'Consoidal')
+#ax[0].plot(r,ktor/totK_, label=r'Toroidal')
 
 ax[0].set_ylim(-1,18)
 ax[0].set_xlabel(r'$r/R_\odot$',size=12)
@@ -277,5 +282,5 @@ ax[1].legend()
 
 
 
-tight_layout()
-show()
+#plt.tight_layout()
+#plt.show()

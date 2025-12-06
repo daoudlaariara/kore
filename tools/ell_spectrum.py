@@ -34,7 +34,7 @@ nr          = par.N
 # set the radial grid
 i = np.arange(0,nr)
 x = np.cos( (i+0.5)*np.pi/nr )
-r = 0.5*gap*(x+1) + ricb;
+r = 0.5*gap*(x+1) + ricb
 
 if ricb == 0 :
     x0 = 0.5 + x/2

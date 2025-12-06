@@ -5,26 +5,19 @@ from glob import glob
 from .plotlib import add_colorbar,default_cmap,radContour,merContour,eqContour
 from .libkoreviz import spec2spat_vec,spec2spat_scal
 import sys
-import os
 
 
 class kmode:
 
     def __init__(self, vort=False,datadir='.',field='u', solnum=0,
-                 nr=None, nphi=None, nthreads=4, transform=True):
+                 nr=None, nphi=None, nthreads=4, phase=0, transform=True):
 
         sys.path.insert(0,datadir+'/bin')
 
         import parameters as par
         import utils as ut
         import utils4pp as upp
-        if ( os.path.exists('radial_profiles.py')
-            or os.path.exists('./bin/radial_profiles.py') ):
-            import radial_profiles as rap
-            l_prof = True
-        else:
-            l_prof = False
-            print("No radial_profiles.py found, assuming not on main branch.")
+        import radial_profiles as rap
 
         self.solnum   = solnum
         self.lmax     = par.lmax
@@ -33,12 +26,13 @@ class kmode:
         self.N        = par.N
         self.ricb     = par.ricb
         self.rcmb     = ut.rcmb
+        self.n        = ut.n
+        self.n0       = ut.n0
         self.field    = field
         gap           = self.rcmb - self.ricb
         self.ut       = ut
         self.par      = par
         self.nthreads = nthreads
-
         if nr is None:
             self.nr = par.N + 2
         else:
@@ -104,12 +98,21 @@ class kmode:
             field='composition'
             vsymm = par.symm
             vec = False
+        elif field in ['p','press','pressure']:
+            a = np.loadtxt('real_pressure.field',usecols=solnum)
+            b = np.loadtxt('imag_pressure.field',usecols=solnum)
+            field='pressure'
+            vsymm = par.symm
+            vec = False
+
+        # expand solution in case ricb=0, multiply by complex phase factor
+        aib = upp.expand_sol(a+1j*b,vsymm)*(np.cos(phase)+1j*np.sin(phase))
+        a = np.real(aib)
+        b = np.imag(aib)
 
         if vec:
 
-            [Plj, Tlj] = upp.expand_reshape_sol(a+1j*b,vsymm)
-
-            sol = spec2spat_vec(self,ut,chx,Plj,Tlj,vsymm,nthreads,
+            sol = spec2spat_vec(self,ut,par,chx,a,b,vsymm,nthreads,
                                vort=vort,transform=transform)
 
             self.Qlm,self.Slm,self.Plm,self.Tlm = sol[:4]
@@ -118,13 +121,12 @@ class kmode:
                 if not vort:
                     if field == 'u':
                         self.ur, self.utheta, self.uphi = sol[4:]
-                        if hasattr(par,'anelastic'):
-                            if par.anelastic and l_prof: #Comment the block out if you want momentum/mass flux
-                                self.rho = rap.density(self.r)
-                                for irho in range(self.nr):
-                                    self.ur[irho,...]     /= self.rho[irho]
-                                    self.utheta[irho,...] /= self.rho[irho]
-                                    self.uphi[irho,...]   /= self.rho[irho]
+                        if par.anelastic: #Comment the block out if you want momentum/mass flux
+                            self.rho = rap.density(self.r)
+                            for irho in range(self.nr):
+                                self.ur[irho,...]     /= self.rho[irho]
+                                self.utheta[irho,...] /= self.rho[irho]
+                                self.uphi[irho,...]   /= self.rho[irho]
                     elif field == 'b':
                         self.br, self.btheta, self.bphi = sol[4:]
                 else:
@@ -136,9 +138,7 @@ class kmode:
             del sol
 
         else:
-            Plj = upp.expand_reshape_sol(a+1j*b,vsymm)
-            sol = spec2spat_scal(self,chx,Plj,vsymm,
-                                 nthreads,transform=transform)
+            sol = spec2spat_scal(self,ut,par,chx,a,b,vsymm,nthreads,transform=transform)
             self.Qlm = sol[0]
             if transform:
                 scal = sol[1]
@@ -147,12 +147,7 @@ class kmode:
             del sol
 
 
-    def get_data(self,field):
-
-        if self.field in ['t','temp','temperature']:
-            field = 'temperature'
-        elif self.field in ['c','comp','composition']:
-            field = 'composition'
+    def get_data(self,field, scale=1):
 
         field = field.lower()
 
@@ -188,6 +183,10 @@ class kmode:
             data = self.composition
             titl = r'Composition'
 
+        if field in ['p','press','pressure']:
+            data = 3.3e-6*self.pressure
+            titl = r'Pressure'
+
         if field in ['energy','ener','ke','e']:
             data = 0.5 * (self.ur**2 + self.utheta**2 + self.uphi**2)
             titl = r'Kinetic Energy'
@@ -200,7 +199,7 @@ class kmode:
             data = self.vort_r * np.cos(th3D) - self.vort_t * np.sin(th3D)
             titl = r'$\omega_z$'
 
-        return data, titl, field
+        return scale*data, titl
 
 
     def surf(self, field='ur', r=0.5, levels=48, cmap=None,
@@ -210,13 +209,13 @@ class kmode:
         if self.m == 0:
             data = np.zeros([ self.ntheta, self.nphi + 1])
             ir = np.argmin(abs(self.r-r))
-            dat_tmp,titl,field = self.get_data(field=field)
+            dat_tmp,titl = self.get_data(field=field)
             data[:,:-1] = dat_tmp[ir,...]
             data[:, -1] = data[:,0]
         else:
             data = np.zeros([ self.ntheta, self.nphi*self.m + 1])
             ir = np.argmin(abs(self.r-r))
-            dat_tmp,titl,field = self.get_data(field=field)
+            dat_tmp,titl = self.get_data(field=field)
             data[:,:-1] = np.tile( dat_tmp[ir,...], self.m )
             data[:, -1] = data[:,0]
 
@@ -225,50 +224,60 @@ class kmode:
         if cmap is None:
             cmap = default_cmap(field)
 
+
         cont = radContour( self.theta, self.phi, data.T,
                           levels=levels, cmap=cmap, clim=clim)
 
         if titl:
-            titl = titl + r' at $r/r_o = %.2f$' %(self.r[ir]/self.rcmb)
-            plt.title(titl,fontsize=30)
+           titl = titl + r' at $r/r_o = %.2f$' %(self.r[ir]/self.rcmb)
+           plt.title(titl,fontsize=30)
         plt.axis('equal')
         plt.axis('off')
         if colbar:
             cbar = add_colorbar(cont,aspect=40)
-
+        # cbar.set_label("$\Delta C/S_{21}$", fontsize = 18, rotation = 90)
         plt.tight_layout()
         plt.show()
 
-
     def merid(self, field='ur', azim=0, levels=48, cmap=None,
-              colbar=True, titl=True, clim=[0,0]):
+              colbar=True, titl=False, clim=[0,0], log_energy = False, plot = True, cbar_title = "", scale = 1):
         # Meridional cross section
 
         iphi = np.argmin(abs( self.phi - (azim*np.pi/180) )) % self.nphi
-        dat_tmp,titl,field = self.get_data(field)
+        dat_tmp,titl = self.get_data(field, scale)
         data = dat_tmp[:,:,iphi]
 
-        if field in ['energy','ener','e','ke']:
+        if field in ['energy','ener','e','ke'] and log_energy:
             #cmap = cmr.tropical_r
             data = np.log10(data)
 
-        plt.figure(figsize=(6,9))
+        if plot : 
+            plt.figure(figsize=(6,9))
 
-        if cmap is None:
-            cmap = default_cmap(field)
+            if cmap is None:
+                cmap = default_cmap(field)
 
-        cont = merContour( self.r, self.theta, data.T,
-                           levels=levels, cmap=cmap, clim=clim)
+            cont = merContour( self.r, self.theta, data.T,
+                            levels=levels, cmap=cmap, clim=clim)
 
-        if titl:
-            titl = titl + r' at $\phi=%.1f^\circ$' %(self.phi[iphi] * 180/np.pi)
-            plt.title(titl,fontsize=20)
-        plt.axis('equal')
-        plt.axis('off')
-        if colbar:
-            cbar = add_colorbar(cont,aspect=60)
-        plt.tight_layout()
-        plt.show()
+            print(np.max(data))
+            print(np.min(data))
+
+            if titl:
+                titl = titl + r' at $\phi=%.1f^\circ$' %(self.phi[iphi] * 180/np.pi)
+                #plt.title(titl,fontsize=20)
+            plt.axis('equal')
+            plt.axis('off')
+            if colbar:
+                cbar = add_colorbar(cont,aspect=25)
+
+            cbar.set_label(cbar_title, fontsize = 18, rotation = 90)
+            cbar.formatter.set_powerlimits((0, 0))
+            
+            plt.tight_layout()
+            plt.show()
+
+        
 
 
     def equat(self, field='ur', levels=48, cmap=None,
@@ -278,13 +287,13 @@ class kmode:
         if self.m == 0:
             data = np.zeros([ self.nr, self.nphi + 1])
             itheta = np.argmin( abs( self.theta - np.pi/2 ) )
-            dat_tmp,titl,field = self.get_data(field)
+            dat_tmp,titl = self.get_data(field)
             data[:,:-1] = dat_tmp[:,itheta,:]
             data[:, -1] = data[:,0]
         else:
             data = np.zeros([ self.nr, self.nphi*self.m + 1])
             itheta = np.argmin( abs( self.theta - np.pi/2 ) )
-            dat_tmp,titl,field = self.get_data(field)
+            dat_tmp,titl = self.get_data(field)
             print(np.shape(data),np.shape(dat_tmp))
             data[:,:-1] = np.tile( dat_tmp[:,itheta,:], self.m )
             data[:, -1] = data[:,0]
@@ -304,7 +313,7 @@ class kmode:
         plt.axis('equal')
         plt.axis('off')
         if colbar:
-            cbar = add_colorbar(cont,aspect=60)
+            cbar = add_colorbar(cont,aspect=40)
         plt.tight_layout()
         plt.show()
 
@@ -333,7 +342,6 @@ class kmode:
                                        polar_opt=polar_opt)
 
         L = sh.l * (sh.l + 1)
-
         brlm = sh.analys(brcmb)
         bpolcmb = np.zeros_like(brlm)
         bpolcmb[1:] = rcmb**2 * brlm[1:]/L[1:]
@@ -351,7 +359,7 @@ class kmode:
             brlm = bpol * L/radius**2
             brout[...,k] = sh.synth(brlm)
 
-            slm = -sh.l/radius * bpol
+            slm = -(sh.l/radius**2) * bpol
 
             btout[...,k], bpout[...,k] = sh.synth(slm,btor)
 
@@ -360,3 +368,50 @@ class kmode:
         bpout = np.transpose(bpout,(2,0,1))
 
         return brout, btout, bpout
+
+
+    def surf_potextra(self, rout, levels=48, cmap=None,
+              colbar=True, titl=True, clim=[0,0], field = 'b', plot = True, res = False) : 
+        brcmb = self.br[0, ...]
+        rcmb = self.r[0]
+        rout = np.array([rout])
+
+        brout, btout, bpout = self.potextra(brcmb, rcmb, rout)
+        bout = np.sqrt(brout**2+btout**2+bpout**2)
+
+        bout *= self.par.B0_scale
+
+        if plot : 
+            data = np.zeros([ self.ntheta, self.nphi*self.m + 1])
+            if field == 'b' : dat_tmp= bout
+            elif field == 'br' : dat_tmp = brout*self.par.B0_scale
+            elif field == 'bt' : dat_tmp = btout*self.par.B0_scale
+            elif field == 'bp' : dat_tmp = bpout*self.par.B0_scale
+
+            data[:,:-1] = np.tile( dat_tmp[0,...], self.m )
+            data[:, -1] = data[:,0]
+
+            plt.figure(figsize=(12,6))
+
+            if cmap is None:
+                cmap = default_cmap('b')
+
+            cont = radContour( self.theta, self.phi, data.T,
+                            levels=levels, cmap=cmap, clim=clim)
+
+#
+            #titl = r'$b^r_{out}$'
+            #if titl:
+            #    titl = titl + r' at $r/r_o = %.2f$' %(rout[0])
+            #    plt.title(titl,fontsize=30)
+            plt.axis('equal')
+            plt.axis('off')
+            if colbar:
+                cbar = add_colorbar(cont,aspect=40)
+                cbar.set_label("$b^r_{out} [nT]$", fontsize = 18, rotation = 90)
+
+            plt.tight_layout()
+            plt.show()
+
+        if res : 
+            return np.max(bout)

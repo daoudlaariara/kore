@@ -5,6 +5,9 @@ import numpy as np
 import parameters as par
 import utils as ut
 
+if par.diffrot : from diff_rot_coeffs import *
+
+
 # In the following loop we read all the submatrices needed (as per submatrices.py),
 # and create corresponding operator names as global variables
 fname = [f for f in glob.glob('*.mtx')]
@@ -46,82 +49,235 @@ def u(l, section, component, offdiag):  # --------------------------------------
 
 
 def coriolis(l, section, component, offdiag):  # ------------------------------------------------- Coriolis force 2z x u
+    """
+        Modified Coriolis operator to account for differential rotation if par.diffrot == 1
+    """
 
     out  = 0
     offd = 0
     L = l*(l+1)
 
     if section == 'u':  # ------------------------------------------------------- 2curl
+        if par.diffrot == 0 : 
+            if component == 'upol':
 
-        if component == 'upol':
+                if offdiag == 0:
 
-            if offdiag == 0:
+                    if (par.magnetic == 1 and par.B0 == 'dipole'):
+                        out = 2j*par.m*( -L*r4_D0_u + 2*r5_D1_u + r6_D2_u )  # r6* r.2curl(2z x u)
+                    else:
+                        out = 2j*par.m*( -L*r2_D0_u + 2*r3_D1_u + r4_D2_u )  # r4* r.2curl(2z x u)
 
-                if (par.magnetic == 1 and par.B0 == 'dipole'):
-                    out = 2j*par.m*( -L*r4_D0_u + 2*r5_D1_u + r6_D2_u )  # r6* r.2curl(2z x u)
-                else:
-                    out = 2j*par.m*( -L*r2_D0_u + 2*r3_D1_u + r4_D2_u )  # r4* r.2curl(2z x u)
+            elif component == 'utor':
 
-        elif component == 'utor':
+                if offdiag == -1:
+                    C = (l**2-1)*np.sqrt(l**2-par.m**2) / (2*l-1.)
+                    if (par.magnetic == 1 and par.B0 == 'dipole'):
+                        out = 2*C*( (l-1)*r5_D0_u - r6_D1_u )              # r6* r.2curl(2z x u)
+                    else:
+                        out = 2*C*( (l-1)*r3_D0_u - r4_D1_u )              # r4* r.2curl(2z x u)
 
-            if offdiag == -1:
+                    if ut.symm1 == 1:
+                        offd = -1
 
-                C = (l**2-1)*np.sqrt(l**2-par.m**2) / (2*l-1.)
-                if (par.magnetic == 1 and par.B0 == 'dipole'):
-                    out = 2*C*( (l-1)*r5_D0_u - r6_D1_u )              # r6* r.2curl(2z x u)
-                else:
-                    out = 2*C*( (l-1)*r3_D0_u - r4_D1_u )              # r4* r.2curl(2z x u)
+                elif offdiag == 1:
 
-                if ut.symm1 == 1:
+                    C = l*(l+2.)*np.sqrt((l+par.m+1.)*(l-par.m+1)) / (2.*l+3.)
+                    if (par.magnetic == 1 and par.B0 == 'dipole'):
+                        out = 2*C*( -(l+2)*r5_D0_u - r6_D1_u )             # r6* r.2curl(2z x u)
+                    else:
+                        out = 2*C*( -(l+2)*r3_D0_u - r4_D1_u )             # r4* r.2curl(2z x u)
+
+                    if ut.symm1 == -1:
+                        offd = 1
+        
+        elif par.diffrot == 1 : 
+            if component == 'upol':
+
+                if offdiag == -2:
+
+                    if (par.magnetic == 1 and par.B0 == 'dipole'):
+                        out = c1_2curl(l, par.m, par.w)*r4_D0_u + c8_2curl(l, par.m, par.w)*r5_D1_u + c15_2curl(l, par.m, par.w)*r6_D2_u  # r6* r.2curl(2z x u)
+                    else:
+                        out = c1_2curl(l, par.m, par.w)*r2_D0_u + c8_2curl(l, par.m, par.w)*r3_D1_u + c15_2curl(l, par.m, par.w)*r4_D2_u  # r4* r.2curl(2z x u)
+                
                     offd = -1
+                
+                if offdiag == 0:
 
-            elif offdiag == 1:
+                    if (par.magnetic == 1 and par.B0 == 'dipole'):
+                        out = c2_2curl(l, par.m, par.w)*r4_D0_u + c9_2curl(l, par.m, par.w)*r5_D1_u + c16_2curl(l, par.m, par.w)*r6_D2_u  # r6* r.2curl(2z x u)
+                    else:
+                        out = c2_2curl(l, par.m, par.w)*r2_D0_u + c9_2curl(l, par.m, par.w)*r3_D1_u + c16_2curl(l, par.m, par.w)*r4_D2_u  # r4* r.2curl(2z x u)
+                
+                if offdiag == 2:
 
-                C = l*(l+2.)*np.sqrt((l+par.m+1.)*(l-par.m+1)) / (2.*l+3.)
-                if (par.magnetic == 1 and par.B0 == 'dipole'):
-                    out = 2*C*( -(l+2)*r5_D0_u - r6_D1_u )             # r6* r.2curl(2z x u)
-                else:
-                    out = 2*C*( -(l+2)*r3_D0_u - r4_D1_u )             # r4* r.2curl(2z x u)
-
-                if ut.symm1 == -1:
+                    if (par.magnetic == 1 and par.B0 == 'dipole'):
+                        out = c3_2curl(l, par.m, par.w)*r4_D0_u + c10_2curl(l, par.m, par.w)*r5_D1_u + c17_2curl(l, par.m, par.w)*r6_D2_u  # r6* r.2curl(2z x u)
+                    else:
+                        out = c3_2curl(l, par.m, par.w)*r2_D0_u + c10_2curl(l, par.m, par.w)*r3_D1_u + c17_2curl(l, par.m, par.w)*r4_D2_u  # r4* r.2curl(2z x u)
+                
                     offd = 1
+                
+            elif component == 'utor':
+                
+                if offdiag == -3:
+
+                    if (par.magnetic == 1 and par.B0 == 'dipole'):
+                        out = c4_2curl(l, par.m, par.w)*r5_D0_u + c11_2curl(l, par.m, par.w)*r6_D1_u            # r6* r.2curl(2z x u)
+                    else:
+                        out = c4_2curl(l, par.m, par.w)*r3_D0_u + c11_2curl(l, par.m, par.w)*r4_D1_u            # r4* r.2curl(2z x u)
+
+                    if ut.symm1 == -1:
+                        offd = -1
+                    elif ut.symm1 == 1 : 
+                        offd = -2
+                    
+                if offdiag == -1:
+
+                    if (par.magnetic == 1 and par.B0 == 'dipole'):
+                        out = c5_2curl(l, par.m, par.w)*r5_D0_u + c12_2curl(l, par.m, par.w)*r6_D1_u            # r6* r.2curl(2z x u)
+                    else:
+                        out = c5_2curl(l, par.m, par.w)*r3_D0_u + c12_2curl(l, par.m, par.w)*r4_D1_u            # r4* r.2curl(2z x u)
+
+                    if ut.symm1 == 1:
+                        offd = -1
+
+                elif offdiag == 1:
+
+                    if (par.magnetic == 1 and par.B0 == 'dipole'):
+                        out = c6_2curl(l, par.m, par.w)*r5_D0_u + c13_2curl(l, par.m, par.w)*r6_D1_u            # r6* r.2curl(2z x u)
+                    else:
+                        out = c6_2curl(l, par.m, par.w)*r3_D0_u + c13_2curl(l, par.m, par.w)*r4_D1_u            # r4* r.2curl(2z x u)
+
+                    if ut.symm1 == -1:
+                        offd = 1
+                    
+                elif offdiag == 3:
+
+                    if (par.magnetic == 1 and par.B0 == 'dipole'):
+                        out = c7_2curl(l, par.m, par.w)*r5_D0_u + c14_2curl(l, par.m, par.w)*r6_D1_u            # r6* r.2curl(2z x u)
+                    else:
+                        out = c7_2curl(l, par.m, par.w)*r3_D0_u + c14_2curl(l, par.m, par.w)*r4_D1_u            # r4* r.2curl(2z x u)
+
+                    if ut.symm1 == -1:
+                        offd = 2
+                    elif ut.symm1 == 1 : 
+                        offd = 1
 
     if section == 'v':  # ------------------------------------------------------- 1curl
+        if par.diffrot == 0 : 
+            if component == 'upol':
 
-        if component == 'upol':
+                if offdiag == -1:
 
-            if offdiag == -1:
+                    C = (l**2-1)*np.sqrt(l**2-par.m**2) / (2*l-1.)
+                    if (par.magnetic == 1 and par.B0 == 'dipole'):
+                        out = 2*C*( (l-1)*r4_D0_v - r5_D1_v )              # r5* r.1curl(2z x u)
+                    else:
+                        out = 2*C*( (l-1)*r1_D0_v - r2_D1_v )              # r2* r.1curl(2z x u)
 
-                C = (l**2-1)*np.sqrt(l**2-par.m**2) / (2*l-1.)
-                if (par.magnetic == 1 and par.B0 == 'dipole'):
-                    out = 2*C*( (l-1)*r4_D0_v - r5_D1_v )              # r5* r.1curl(2z x u)
-                else:
-                    out = 2*C*( (l-1)*r1_D0_v - r2_D1_v )              # r2* r.1curl(2z x u)
+                    if ut.symm1 == -1:
+                        offd = -1
 
-                if ut.symm1 == -1:
+                elif offdiag == 1:
+
+                    C = l*(l+2)*np.sqrt((l+par.m+1.)*(l-par.m+1)) / (2*l+3)
+                    if (par.magnetic == 1 and par.B0 == 'dipole'):
+                        out = 2*C*( -(l+2)*r4_D0_v - r5_D1_v )             # r5* r.1curl(2z x u)
+                    else:
+                        out = 2*C*( -(l+2)*r1_D0_v - r2_D1_v )             # r2* r.1curl(2z x u)
+
+                    if ut.symm1 == 1:
+                        offd = 1
+
+            elif component == 'utor':
+
+                if offdiag == 0:
+
+                    if (par.magnetic == 1 and par.B0 == 'dipole'):
+                        out = -2j*par.m*r5_D0_v                          # r5* r.1curl(2z x u)
+                    else:
+                        out = -2j*par.m*r2_D0_v                          # r2* r.1curl(2z x u)
+
+        elif par.diffrot == 1 : 
+            if component == 'upol':
+
+                if offdiag == -3:
+
+                    if (par.magnetic == 1 and par.B0 == 'dipole'):
+                        out = c1_1curl(l, par.m, par.w)*r4_D0_v + c8_1curl(l, par.m, par.w)*r5_D1_v            # r5* r.1curl(2z x u)
+                    else:
+                        out = c1_1curl(l, par.m, par.w)*r1_D0_v + c8_1curl(l, par.m, par.w)*r2_D1_v              # r2* r.1curl(2z x u)
+
+                    if ut.symm1 == -1:
+                        offd = -2
+                    elif ut.symm1 == 1: 
+                        offd = -1
+                    
+                if offdiag == -1:
+
+                    if (par.magnetic == 1 and par.B0 == 'dipole'):
+                        out = c2_1curl(l, par.m, par.w)*r4_D0_v + c9_1curl(l, par.m, par.w)*r5_D1_v            # r5* r.1curl(2z x u)
+                    else:
+                        out = c2_1curl(l, par.m, par.w)*r1_D0_v + c9_1curl(l, par.m, par.w)*r2_D1_v             # r2* r.1curl(2z x u)
+
+                    if ut.symm1 == -1:
+                        offd = -1
+                
+                if offdiag == 1:
+
+                    if (par.magnetic == 1 and par.B0 == 'dipole'):
+                        out = c3_1curl(l, par.m, par.w)*r4_D0_v + c10_1curl(l, par.m, par.w)*r5_D1_v              # r5* r.1curl(2z x u)
+                    else:
+                        out = c3_1curl(l, par.m, par.w)*r1_D0_v + c10_1curl(l, par.m, par.w)*r2_D1_v              # r2* r.1curl(2z x u)
+
+                    if ut.symm1 == 1:
+                        offd = 1
+                    
+                if offdiag == 3:
+
+                    if (par.magnetic == 1 and par.B0 == 'dipole'):
+                        out = c4_1curl(l, par.m, par.w)*r4_D0_v + c11_1curl(l, par.m, par.w)*r5_D1_v              # r5* r.1curl(2z x u)
+                    else:
+                        out = c4_1curl(l, par.m, par.w)*r1_D0_v + c11_1curl(l, par.m, par.w)*r2_D1_v              # r2* r.1curl(2z x u)
+
+                    if ut.symm1 == -1:
+                        offd = 1
+                    elif ut.symm1 == 1:
+                        offd = 2
+                
+
+            elif component == 'utor':
+
+                if offdiag == -2:
+
+                    if (par.magnetic == 1 and par.B0 == 'dipole'):
+                        out = c5_1curl(l, par.m, par.w)*r5_D0_v                          # r5* r.1curl(2z x u)
+                    else:
+                        out = c5_1curl(l, par.m, par.w)*r2_D0_v                          # r2* r.1curl(2z x u)
+                    
                     offd = -1
+                    
+                if offdiag == 0:
 
-            elif offdiag == 1:
+                    if (par.magnetic == 1 and par.B0 == 'dipole'):
+                        out = c6_1curl(l, par.m, par.w)*r5_D0_v                          # r5* r.1curl(2z x u)
+                    else:
+                        out = c6_1curl(l, par.m, par.w)*r2_D0_v                          # r2* r.1curl(2z x u)
+                
+                if offdiag == 2:
 
-                C = l*(l+2)*np.sqrt((l+par.m+1.)*(l-par.m+1)) / (2*l+3)
-                if (par.magnetic == 1 and par.B0 == 'dipole'):
-                    out = 2*C*( -(l+2)*r4_D0_v - r5_D1_v )             # r5* r.1curl(2z x u)
-                else:
-                    out = 2*C*( -(l+2)*r1_D0_v - r2_D1_v )             # r2* r.1curl(2z x u)
+                    if (par.magnetic == 1 and par.B0 == 'dipole'):
+                        out = c7_1curl(l, par.m, par.w)*r5_D0_v                          # r5* r.1curl(2z x u)
+                    else:
+                        out = c7_1curl(l, par.m, par.w)*r2_D0_v                          # r2* r.1curl(2z x u)
 
-                if ut.symm1 == 1:
                     offd = 1
 
-        elif component == 'utor':
+    #print(l, section, component, offdiag, offd)
 
-            if offdiag == 0:
-
-                if (par.magnetic == 1 and par.B0 == 'dipole'):
-                    out = -2j*par.m*r5_D0_v                          # r5* r.1curl(2z x u)
-                else:
-                    out = -2j*par.m*r2_D0_v                          # r2* r.1curl(2z x u)
-
-    return [ par.Gaspard * out, offd ]
+    return [ par.OmgTau * out, offd ]
 
 
 
@@ -166,6 +322,7 @@ def viscous_diffusion(l, section, component, offdiag):  # ----------------------
                                 -4* r3_vsc0_D3_u + r4_vsc0_lho1_D3_u - 2* r4_vsc1_D3_u
 
                                 - r4_vsc0_D4_u )
+
             else:
 
                 if (par.magnetic == 1 and par.B0 == 'dipole'):
@@ -181,17 +338,17 @@ def viscous_diffusion(l, section, component, offdiag):  # ----------------------
                             +r2_D2_v)
 
                 if par.variable_viscosity:
-
                     out = L * ( -L* r0_vsc0_D0_v - 3* r1_vsc0_lho1_D0_v - r2_vsc1_lho1_D0_v - r2_vsc0_lho2_D0_v - r1_vsc1_D0_v
                             + 2* r1_vsc0_D1_v - r2_vsc0_lho1_D1_v + r2_vsc1_D1_v
                             + r2_vsc0_D2_v )
+            
             else:
                 if (par.magnetic == 1 and par.B0 == 'dipole'):
                     out = L*( -L*r3_D0_v + 2*r4_D1_v + r5_D2_v )                          # r5* r.1curl( nabla^2 u )
                 else:
                     out = L*( -L*r0_D0_v + 2*r1_D1_v + r2_D2_v )                            # r2* r.1curl( nabla^2 u )
 
-    return par.ViscosD * out
+    return par.OmgTau * par.Ek * out
 
 
 
@@ -379,7 +536,7 @@ def lorentz(l, section, component, offdiag):  # --------------------------------
                 offd = 1
 
 
-    return [ par.Hendrik * out, offd ]
+    return [ (par.OmgTau*par.Le)**2 * out, offd ]
 
 
 
@@ -392,8 +549,6 @@ def buoyancy(l, section, component, offdiag):  # -------------------------------
 
         if par.anelastic:
             buoy = r3_buo0_D0_u
-            #buoy = -1 * r3_bvs0_D0_u
-
         else:
             if (par.magnetic == 1) and (par.B0 == 'dipole') :
                 buoy = r6_D0_u
@@ -402,7 +557,7 @@ def buoyancy(l, section, component, offdiag):  # -------------------------------
 
     out = L * buoy
 
-    return par.Beyonce * out
+    return par.OmgTau**2 * par.BV2 * out
 
 
 
@@ -686,7 +841,7 @@ def magnetic_diffusion(l, section, component, offdiag):
                     out = L*( 2*r4_eta0_D1_g - L* r3_eta0_D0_g + r5_eta0_D2_g - r4_eta1_D0_g - r5_eta1_D1_g )
 
 
-    return par.MagnetD * out
+    return par.OmgTau * par.Em * out
 
 
 
@@ -697,17 +852,12 @@ def magnetic_diffusion(l, section, component, offdiag):
 
 
 def theta(l, section, component, offdiag):
-    '''
-    This is the temperature perturbation in the Bussinesq case,
-    or the specific entropy perturbation in the anelastic case.
-    '''
 
+    out = 0
     if (section == 'h') and (offdiag == 0) :
 
         if par.anelastic:
-            #out = r2_rho0_D0_h
-            out = r2_roT0_D0_h
-            #out = r1_D0_h
+            out = r2_rho0_D0_h
         else:
             if par.heating == 'differential' :
                 out = r3_D0_h
@@ -718,7 +868,7 @@ def theta(l, section, component, offdiag):
 
 
 
-def thermal_advection(l, section, component, offdiag):  # -u_r * dT/dr or -(rho * u_r) * (T * dS/dr)
+def thermal_advection(l, section, component, offdiag):  # -u_r * dT/dr
 
     out = 0
     L = l*(l+1)
@@ -728,14 +878,14 @@ def thermal_advection(l, section, component, offdiag):  # -u_r * dT/dr or -(rho 
     if ((section == 'h') and (component == 'upol')) and (offdiag == 0) :
 
         if par.anelastic:
-            conv = -r1_tds0_D0_h # T*dS/dr
+            conv = -r1_drS0_D0_h  # (r*S0')*D0s
         else:
             if par.heating == 'internal':
                 conv = r2_D0_h  # dT/dr = -beta*r. Heat equation is times r**2
             elif par.heating == 'differential':
                 conv = r0_D0_h * par.ricb/gap  # dT/dr = -beta * r**2. Heat equation is times r**3
             elif par.heating == 'two zone' or par.heating == 'user defined':
-                conv = -r0_drS0_D0_h  # dT/dr or dS/dr specified in rap.twozone or rap.BVprof. Heat equation is times r**2
+                conv = r0_drS0_D0_h  # dT/dr or dS/dr specified in rap.twozone or rap.BVprof. Heat equation is times r**2
 
         out = L * conv
 
@@ -747,26 +897,21 @@ def thermal_diffusion(l, section, component, offdiag):
 
     L = l*(l+1)
 
-    out = 0
+    if section == 'h' and offdiag == 0 :
 
-    if par.ThermaD > 0:
+        if not par.anelastic:
 
-        if section == 'h' and offdiag == 0 :
-
-            if not par.anelastic:
-
-                if par.heating == 'differential':
-                    difus = - L*r1_D0_h + 2*r2_D1_h + r3_D2_h  # eq. times r**3
-                else:
-                    difus = - L*r0_D0_h + 2*r1_D1_h + r2_D2_h  # eq. times r**2
-
+            if par.heating == 'differential':
+                difus = - L*r1_D0_h + 2*r2_D1_h + r3_D2_h  # eq. times r**3
             else:
+                difus = - L*r0_D0_h + 2*r1_D1_h + r2_D2_h  # eq. times r**2
 
-                #difus = - L*r0_kho0_D0_h + 2*r1_kho0_D1_h + r2_kho0_D2_h + r2_kho0_lnT1_D1_h + r2_kho1_D1_h
-                difus = -L*r0_krT0_D0_h + 2*r1_krT0_D1_h + r2_krT1_D1_h + r2_krT0_D2_h
+        else:
 
-        out = difus * par.ThermaD
-    return out
+            difus = - L*r0_kho0_D0_h + 2*r1_kho0_D1_h + r2_kho0_D2_h + r2_kho0_lnT1_D1_h + r2_kho1_D1_h
+
+    return difus * par.OmgTau * par.Etherm
+
 
 
 # ----------------------------------------------------------------------------------------------------------------------
