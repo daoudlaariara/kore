@@ -46,4 +46,6 @@ cp -r $KORE_HOME/* . # copies the source files
 # modify variables
 sed -i 's,^\('$var'[ ]*=\).*,\1'$value',' bin/parameters.py	
 
-sed -i 's,^\(dir=\).*,\1'$folder',' tools/slurm/subramp.sh
+sed -i 's,^\(dir=\).*,\1'$folder',' tools/slurm/runKore.sh
+
+sed -i 's,^\(dir=\).*,\1'$folder',' tools/slurm/cpRes.sh

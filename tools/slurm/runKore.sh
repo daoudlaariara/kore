@@ -28,6 +28,9 @@ export opts='-ksp_type preonly -pc_type lu'
 #---------- Run ------------------------------------------------------------------------------------------------------  
 ncpus=$1
 
+dir=somefolder
+cd $LOCALSCRATCH/$dir
+
 srun ./bin/submatrices.py $ncpus >> out0
 mpiexec --use-hwthread-cpus ./bin/assemble.py >> out1
 mpiexec --use-hwthread-cpus ./bin/solve_nopp.py $opts >> out2

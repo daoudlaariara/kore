@@ -29,16 +29,12 @@ else
     value=$k # linear
 fi
 
-folder=$pref$value
-
 # Create the run directories
 srun ./tools/slurm/dodir.sh $pref $var $exp $value
-
-cd $LOCALSCRATCH/$folder
 
 # Run the simulations
 #srun sleep 0.2
 srun ./tools/slurm/runKore.sh $SLURM_CPUS_PER_TASK
 
 # Copy results back to global scratch
-srun ./tools/slurm/cpRes.sh $folder
+srun ./tools/slurm/cpRes.sh
