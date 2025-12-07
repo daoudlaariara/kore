@@ -2,11 +2,10 @@
 #
 # Script to copy result files from local scratch to global scratch
 # Use as
-# ./cpRes.sh
+# ./cpRes.sh folder
 # 
 
-dir=somefolder
-cd $LOCALSCRATCH/$dir
+dir=$1
 
 # define global scratch destination
 result_folder=$GLOBALSCRATCH/results/kore
