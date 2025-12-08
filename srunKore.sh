@@ -97,7 +97,7 @@ fi
 srun ./bin/submatrices.py $ncpus >> out0
 srun ./bin/assemble.py >> out1
 srun ./bin/solve.py $opts >> out2
-srun ./bin/spin_doctor.py $ncpus >> out3
+srun ./bin/postprocess.py $ncpus >> out3
 
 # Copy results back to global scratch
 # define global scratch destination

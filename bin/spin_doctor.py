@@ -158,7 +158,7 @@ def main(ncpus):
             KP[i] = np.sum( udgn[lpi,0])  # Poloidal kinetic energy
             KT[i] = np.sum( udgn[lti,0])  # Toroidal kinetic energy
             
-            [ KE[i], Dkin0, Dint0, Wlor0, Wthm0, Wcmp0] = np.sum( udgn, 0)
+            [KE[i], Dkin0, Dint0, Wlor0, Wthm0, Wcmp0] = np.sum( udgn, 0)
             Dkin[i] = par.OmgTau * par.Ek * Dkin0
             Dint[i] = par.OmgTau * par.Ek * Dint0
             Wlor[i] = par.OmgTau**2 * par.Le2 * Wlor0
