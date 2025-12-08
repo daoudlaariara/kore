@@ -3,22 +3,23 @@
 # Script to run Kore simulations on a SLURM-managed cluster
 # with a variable parameter.
 #
-# Call : ./runsKoreS.sh somename var d startvalue step endvalue
+# Call : ./runsKoreS.sh somename var d startvalue step
 # 
 # Exemples : 
-#   sbatch ./runKoreS.sh run_ricb_ ricb d 0.3 0.1 0.8
-#   sbatch ./runKoreS.sh run_Ek_ Ek e -5 -0.1 -6
-# 
+#   sbatch --array 0-10 ./runKoreS.sh run_ricb_ ricb d 0.3 0.1
+#   sbatch --array 0-10 ./runKoreS.sh run_Ek_ Ek e -5 -0.1
+#
+# Where --array can be specified in the sbatch or change in the file
 # 
 #SBATCH --job-name=kore
-#SBATCH --output=output%a.out
+#SBATCH --output=output.txt
 #
 #SBATCH --time=10:00
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem-per-cpu=1000
+#SBATCH --cpus-per-task=8
+#SBATCH --mem-per-cpu=2000
 #
-#SBATCH --array=0-2
+#SBATCH --array=0-10
 
 #------------------------------------------------------------------------------------------------------  
 #------------------------------------------------------------------------------------------------------  
@@ -49,39 +50,51 @@ export opts='-ksp_type preonly -pc_type lu'
 #export opts='-st_type sinvert -st_pc_factor_mat_solver_type mumps -mat_mumps_icntl_14 3000 -eps_true_residual -eps_converged_reason -eps_conv_rel -eps_monitor_conv -eps_error_relative ::ascii_info_detail -eps_balance twoside'
 
 #------------------------------------------------------------------------------------------------------  
-#------------------------------------------------------------------------------------------------------  
-pref=$1
-var=$2
-exp=$3
-startvalue=$4
-step=$5
-endvalue=$6
-ncpus=$SLURM_CPUS_PER_TASK
-k=$(echo "$startvalue + ($SLURM_ARRAY_TASK_ID * $step)" | bc)
-if [ "$exp" = 'e' ]; then
-        value='10**'$k # powers of ten
+#------------------------------------------------------------------------------------------------------
+# Check number of arguments
+if [ $# -eq 0 ]; then
+    #SBATCH --array=0-0
+    folder="run_default"
+elif [ $# -eq 5 ]; then
+    pref=$1
+    var=$2
+    exp=$3
+    startvalue=$4
+    step=$5
+
+    ncpus=$SLURM_CPUS_PER_TASK
+    k=$(echo "$startvalue + ($SLURM_ARRAY_TASK_ID * $step)" | bc)
+    if [ "$exp" = 'e' ]; then
+            value='10**'$k # powers of ten
+    else
+        value=$k # linear
+    fi
+    #------------------------------------------------------------------------------------------------------  
+    #------------------------------------------------------------------------------------------------------  
+
+    # Create the run directories
+    folder=$pref$value
+    echo $folder $var=$value
+    mkdir $LOCALSCRATCH/$folder
+    cd $LOCALSCRATCH/$folder
+    cp -r $KORE_HOME/* . # copies the source files
+
+    # modify variables
+    sed -i 's,^\('$var'[ ]*=\).*,\1'$value',' bin/parameters.py	
+    sed -i 's,^\('ncpus'[ ]*=\).*,\1'$ncpus',' bin/parameters.py	
+
+    srun sleep 0.2
 else
-    value=$k # linear
+    echo "Wrong number of arguments. Either none or five arguments are required."
+    exit 1
 fi
-#------------------------------------------------------------------------------------------------------  
-#------------------------------------------------------------------------------------------------------  
 
-# Create the run directories
-folder=$pref$value
-echo $folder $var=$value
-mkdir $LOCALSCRATCH/$folder
-cd $LOCALSCRATCH/$folder
-cp -r $KORE_HOME/* . # copies the source files
 
-# modify variables
-sed -i 's,^\('$var'[ ]*=\).*,\1'$value',' bin/parameters.py	
-
-srun sleep 0.2
 # Run the simulations
 
 srun ./bin/submatrices.py $ncpus >> out0
-mpiexec --use-hwthread-cpus ./bin/assemble.py >> out1
-mpiexec --use-hwthread-cpus ./bin/solve.py $opts >> out2
+srun ./bin/assemble.py >> out1
+srun ./bin/solve.py $opts >> out2
 #srun ./bin/spin_doctor.py $ncpus >> out3
 #srun ./bin/postprocess.py >> out4
 
@@ -98,3 +111,5 @@ cp -r *out* $result_folder/$folder/
 #rm *.field
 rm *.npz
 rm *.mtx
+
+
