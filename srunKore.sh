@@ -3,13 +3,15 @@
 # Script to run Kore simulations on a SLURM-managed cluster
 # with a variable parameter.
 #
-# Call : ./runsKoreS.sh somename var d startvalue step
+# Call : sbatch --array 0-<num> ./srunKore.sh somename var d startvalue step
 # 
-# Exemples : 
-#   sbatch --array 0-10 ./runKoreS.sh run_ricb_ ricb d 0.3 0.1
-#   sbatch --array 0-10 ./runKoreS.sh run_Ek_ Ek e -5 -0.1
+# Example calls: 
+#   sbatch --array 0-10 ./srunKore.sh run_ricb_ ricb d 0.3 0.1
+#   sbatch --array 0-10 ./srunKore.sh run_Ek_ Ek e -5 -0.1
 #
 # Where --array can be specified in the sbatch or change in the file
+#
+# Also possible to make a simple run : sbatch ./srunKore.sh, with the current parameter file
 # 
 #SBATCH --job-name=kore
 #SBATCH --output=output.txt
@@ -18,8 +20,6 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem-per-cpu=2000
-#
-#SBATCH --array=0-10
 
 #------------------------------------------------------------------------------------------------------  
 #------------------------------------------------------------------------------------------------------  
@@ -49,8 +49,10 @@ export opts='-ksp_type preonly -pc_type lu'
 #export opts='-st_type sinvert -st_ksp_type preonly -st_pc_type lu -eps_error_relative ::ascii_info_detail -st_pc_factor_mat_solver_type superlu_dist -mat_superlu_dist_iterrefine 1 -mat_superlu_dist_colperm PARMETIS -mat_superlu_dist_parsymbfact 1'
 #export opts='-st_type sinvert -st_pc_factor_mat_solver_type mumps -mat_mumps_icntl_14 3000 -eps_true_residual -eps_converged_reason -eps_conv_rel -eps_monitor_conv -eps_error_relative ::ascii_info_detail -eps_balance twoside'
 
+ncpus=$SLURM_CPUS_PER_TASK
 #------------------------------------------------------------------------------------------------------  
 #------------------------------------------------------------------------------------------------------
+
 # Check number of arguments
 if [ $# -eq 0 ]; then
     #SBATCH --array=0-0
@@ -62,7 +64,6 @@ elif [ $# -eq 5 ]; then
     startvalue=$4
     step=$5
 
-    ncpus=$SLURM_CPUS_PER_TASK
     k=$(echo "$startvalue + ($SLURM_ARRAY_TASK_ID * $step)" | bc)
     if [ "$exp" = 'e' ]; then
             value='10**'$k # powers of ten
@@ -91,7 +92,6 @@ fi
 
 
 # Run the simulations
-
 srun ./bin/submatrices.py $ncpus >> out0
 srun ./bin/assemble.py >> out1
 srun ./bin/solve.py $opts >> out2
