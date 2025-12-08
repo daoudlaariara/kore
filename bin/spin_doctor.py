@@ -150,7 +150,7 @@ def main(ncpus):
 
     
         # diagnose solutions, in parallel
-        [ udgn, bdgn, tdgn, cdgn ] = upp.diagnose( u_sol2, b_sol2, t_sol2, c_sol2, par.ricb, ut.rcmb, int(ncpus), sigma+1j*w )
+        [ udgn, bdgn, tdgn, cdgn ] = upp.diagnose( u_sol2, b_sol2, t_sol2, c_sol2, par.ricb, ut.rcmb, int(ncpus))
 
 
         if par.hydro:
@@ -158,7 +158,7 @@ def main(ncpus):
             KP[i] = np.sum( udgn[lpi,0])  # Poloidal kinetic energy
             KT[i] = np.sum( udgn[lti,0])  # Toroidal kinetic energy
             
-            [ KE[i], Dkin0, Dint0, Wlor0, Wthm0, Wcmp0, _ ] = np.sum( udgn, 0)
+            [ KE[i], Dkin0, Dint0, Wlor0, Wthm0, Wcmp0] = np.sum( udgn, 0)
             Dkin[i] = par.OmgTau * par.Ek * Dkin0
             Dint[i] = par.OmgTau * par.Ek * Dint0
             Wlor[i] = par.OmgTau**2 * par.Le2 * Wlor0
@@ -278,53 +278,53 @@ def main(ncpus):
                                 par.forcing_amplitude_cmb,
                                 par.forcing_amplitude_icb,
                                 par.projection,
-                                ut.B0type,
+                                # ut.B0type,
                                 
-                                ut.beta_actual,
-                                ut.B0_l,
-                                ut.innercore_mag_bc,
-                                par.c_icb,
+                                # ut.beta_actual,
+                                # ut.B0_l,
+                                # ut.innercore_mag_bc,
+                                # par.c_icb,
                                 
-                                par.c1_icb,
-                                ut.mantle_mag_bc,
-                                par.c_cmb,
-                                par.c1_cmb,
+                                # par.c1_icb,
+                                # ut.mantle_mag_bc,
+                                # par.c_cmb,
+                                # par.c1_cmb,
                                 
-                                par.mu,
+                                # par.mu,
                                 par.Em,
                                 par.Le2,
-                                ut.B0_norm(),
+                                # ut.B0_norm(),
                                 
-                                par.Etherm,
-                                ut.heating,
-                                par.BV2,
-                                par.rc,
+                                # par.Etherm,
+                                # # ut.heating,
+                                # par.BV2,
+                                # par.rc,
                                 
-                                par.h,
-                                par.rsy,
-                                par.bci_thermal,
-                                par.bco_thermal,
+                                # par.h,
+                                # par.rsy,
+                                # par.bci_thermal,
+                                # par.bco_thermal,
                                 
-                                par.Ecomp,
-                                ut.compositional_background,
-                                par.BV2_comp,
-                                par.rcc,
+                                # par.Ecomp,
+                                # ut.compositional_background,
+                                # par.BV2_comp,
+                                # par.rcc,
                                 
-                                par.hc,
-                                par.rsyc,
-                                par.bci_compositional,
-                                par.bco_compositional,
+                                # par.hc,
+                                # par.rsyc,
+                                # par.bci_compositional,
+                                # par.bco_compositional,
                                 
-                                par.OmgTau,
-                                par.ncpus,
-                                par.N,
-                                par.lmax,
+                                # par.OmgTau,
+                                # par.ncpus,
+                                # par.N,
+                                # par.lmax,
                                 
                                 timing+toc-tic,
-                                par.mu_i2o,
-                                par.sigma_i2o,
-                                par.aux1,
-                                par.aux2
+                                # par.mu_i2o,
+                                # par.sigma_i2o,
+                                # par.aux1,
+                                # par.aux2
                                 ])  # 53 total
 
     # ------------------------------------------------------------------------------------------------------------------------

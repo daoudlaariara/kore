@@ -55,8 +55,10 @@ ncpus=$SLURM_CPUS_PER_TASK
 
 # Check number of arguments
 if [ $# -eq 0 ]; then
-    #SBATCH --array=0-0
+    sed -i 's,^\('ncpus'[ ]*=\).*,\1'$ncpus',' bin/parameters.py	
+
     folder="run_default"
+
 elif [ $# -eq 5 ]; then
     pref=$1
     var=$2
@@ -64,7 +66,7 @@ elif [ $# -eq 5 ]; then
     startvalue=$4
     step=$5
 
-    k=$(echo "$startvalue + ($SLURM_ARRAY_TASK_ID * $step)" | bc)
+    k=$(echo "$startvalue + ($SLURM_ARRAY_TASK_ID * $step)" | bc | awk '{printf "%f", $0}')
     if [ "$exp" = 'e' ]; then
             value='10**'$k # powers of ten
     else
@@ -95,8 +97,7 @@ fi
 srun ./bin/submatrices.py $ncpus >> out0
 srun ./bin/assemble.py >> out1
 srun ./bin/solve.py $opts >> out2
-#srun ./bin/spin_doctor.py $ncpus >> out3
-#srun ./bin/postprocess.py >> out4
+srun ./bin/spin_doctor.py $ncpus >> out3
 
 # Copy results back to global scratch
 # define global scratch destination
@@ -107,9 +108,10 @@ mkdir -p $result_folder/$folder
 
 cp -r bin/parameters.py $result_folder/$folder/
 cp -r *out* $result_folder/$folder/
+cp -r *.dat $result_folder/$folder/
 
-#rm *.field
+rm *.field
 rm *.npz
 rm *.mtx
-
-
+rm *.dat
+rm *out*
