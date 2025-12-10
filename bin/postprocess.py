@@ -112,7 +112,7 @@ def main(ncpus):
 
     
         # diagnose solutions, in parallel
-        [ udgn, bdgn, _, _ ] = upp.diagnose( u_sol2, b_sol2, t_sol2, c_sol2, par.ricb, ut.rcmb, int(ncpus))
+        [ udgn, bdgn, _, _ ] = upp.diagnose( u_sol2, b_sol2, t_sol2, c_sol2, par.ricb, ut.rcmb, int(ncpus), sigma+1j*w)
 
 
         if par.hydro:

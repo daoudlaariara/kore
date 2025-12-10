@@ -58,6 +58,7 @@ if [ $# -eq 0 ]; then
     sed -i 's,^\('ncpus'[ ]*=\).*,\1'$ncpus',' bin/parameters.py	
 
     folder="run_default"
+    result_folder=$GLOBALSCRATCH/results/kore/$folder
 
 elif [ $# -eq 5 ]; then
     pref=$1
@@ -84,7 +85,10 @@ elif [ $# -eq 5 ]; then
 
     # modify variables
     sed -i 's,^\('$var'[ ]*=\).*,\1'$value',' bin/parameters.py	
-    sed -i 's,^\('ncpus'[ ]*=\).*,\1'$ncpus',' bin/parameters.py	
+    sed -i 's,^\('ncpus'[ ]*=\).*,\1'$ncpus',' bin/parameters.py
+
+    # define global scratch destination
+    result_folder=$GLOBALSCRATCH/results/kore/$SLURM_ARRAY_JOB_ID/$folder	
 
     srun sleep 0.2
 else
@@ -97,18 +101,18 @@ fi
 srun ./bin/submatrices.py $ncpus >> out0
 srun ./bin/assemble.py >> out1
 srun ./bin/solve.py $opts >> out2
-srun ./bin/postprocess.py $ncpus >> %a.out
+srun ./bin/postprocess.py $ncpus >> ${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}.out
 
 # Copy results back to global scratch
 # define global scratch destination
-result_folder=$GLOBALSCRATCH/results/kore/%A
+result_folder=$GLOBALSCRATCH/results/kore/$folder
 
 # copy results back to global scratch
-mkdir -p $result_folder/$folder
+mkdir -p $result_folder
 
-cp -r bin/parameters.py $result_folder/$folder/
-cp -r *out* $result_folder/$folder/
-cp -r *.dat $result_folder/$folder/
+cp -r bin/parameters.py $result_folder/
+cp -r *out* $result_folder/
+cp -r *.dat $result_folder/
 
 rm *.field
 rm *.npz

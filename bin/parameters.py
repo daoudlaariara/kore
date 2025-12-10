@@ -113,7 +113,7 @@ projection = 1
 # ----------------------------------------------------------------------------------------------------------------------
 # -------------------------------------------------------------------------------------------- Magnetic field parameters
 # ----------------------------------------------------------------------------------------------------------------------
-magnetic = 0  # set to 1 if including the induction equation and the Lorentz force
+magnetic = 1  # set to 1 if including the induction equation and the Lorentz force
 
 # Imposed background magnetic field
 #B0 = 'axial'          # Axial, uniform field along the spin axis
