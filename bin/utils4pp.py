@@ -217,6 +217,15 @@ def cheb2space_tor(L, lt, T, ns):
     return tlm
 
 
+def rms(l, qlm0):
+    '''
+    Returns the r.m.s. value of the radial velocity or magnetic field, l-component
+    √ 1/(4πr²)  ∫ (𝐮ᵣ)² dV or √ 1/(4πr²)  ∫ (𝐛ᵣ)² dV
+    '''
+    f0 = 1/(2*l+1)
+    f1 = np.absolute( qlm0 )**2
+    return np.sqrt(f0*f1)/rk
+
 
 def energy_pol(l, qlm0, slm0):
     '''
@@ -423,7 +432,7 @@ def thermal_advect(l, hlm0, plm0, flag):
 
 
 
-def flow_worker( l, lp, lt, u_sol2, b_sol2, t_sol2, c_sol2, Ra, Rb, N, sqx ):
+def flow_worker( l, lp, lt, u_sol2, b_sol2, t_sol2, c_sol2, Ra, Rb, N, sqx, eigval ):
     '''
     Computes the power balance from the momentum (the Navier-Stokes) equation.
     Includes kinetic energy, kinetic dissipation, internal dissipation, and the
@@ -484,7 +493,9 @@ def flow_worker( l, lp, lt, u_sol2, b_sol2, t_sol2, c_sol2, Ra, Rb, N, sqx ):
     Wthm_l = cg_quad( wther, Ra, Rb, N, sqx )
     Wcmp_l = cg_quad( wcomp, Ra, Rb, N, sqx )   
 
-    return [ Kene_l, Dkin_l, Dint_l, Wlor_l, Wthm_l, Wcmp_l ]
+    press_l = pressure4pp(l, eigval, u_sol2)[0]  # the l component of the pressure at the cmb
+
+    return [ Kene_l, Dkin_l, Dint_l, Wlor_l, Wthm_l, Wcmp_l, np.abs(press_l) ]
 
 
 
@@ -493,6 +504,8 @@ def magnetic_worker(l, lp, lt, b_sol2, u_sol2, Ra, Rb, N, sqx):
     Returns the l-component of the magnetic energy (1/2) ∫ 𝐛⋅𝐛 dV,
     the magnetic diffusion via ∫ 𝐛⋅∇²𝐛 dV, and the l-component
     of the induction term (integrated too).
+    Returns also the r.m.s. value of the radial magnetic field at the CMB 
+    and at the extrapolation radius (insulating mantle).
     '''
     
     F = b_sol2[0]
@@ -501,6 +514,7 @@ def magnetic_worker(l, lp, lt, b_sol2, u_sol2, Ra, Rb, N, sqx):
     [ menep, menet] = [0, 0]
     [ mdfsp, mdfst] = [0, 0]
     [ indup, indut] = [0, 0]
+    [ brrms, cmb  ] = [0, 0]
     
     L = l*(l+1)
 
@@ -515,6 +529,7 @@ def magnetic_worker(l, lp, lt, b_sol2, u_sol2, Ra, Rb, N, sqx):
         menep = energy_pol(l, qlm0, slm0)
         mdfsp = diffus_pol(l, qlm0, qlm1, qlm2, slm0, slm1, slm2 )
         indup = dotprod_pol(l, qlm0, slm0, qlmi, slmi)
+        brrms = rms(l, qlm0)
 
     elif l in lt:
 
@@ -529,7 +544,19 @@ def magnetic_worker(l, lp, lt, b_sol2, u_sol2, Ra, Rb, N, sqx):
     Mdfs_l = cg_quad( mdfsp + mdfst, Ra, Rb, N, sqx)
     Indu_l = cg_quad( indup + indut, Ra, Rb, N, sqx)
 
-    return [ Mene_l, Mdfs_l, Indu_l ]
+   # Pick root-mean-square value at CMB radius
+    cmb    = np.zeros(N)
+    cmb[0] = 1
+    BrmsCMB_l = sum(brrms*cmb)
+    # Extrapolate to outer radius
+    BrmsOut_l = BrmsCMB_l  # default, if mantle is conducting
+    if par.mantle=='insulator':
+        BrmsOut_l = BrmsCMB_l * (ut.rcmb/par.rout)**(l+2)  # extrapolate to insulating mantle radius
+
+    BrmsCMB_l = BrmsCMB_l**2 #brms = sqrt(sum_l(brrms_l**2)), so we return brms_l**2 here
+    BrmsOut_l = BrmsOut_l**2
+
+    return [ Mene_l, Mdfs_l, Indu_l , BrmsCMB_l, BrmsOut_l]
 
 
 
@@ -563,9 +590,96 @@ def thermal_worker(l, lp, t_sol2, u_sol2, Ra, Rb, N, sqx, flag):
 
 
 def lorentz4pp( l, b_sol2 ):
+
+    if   ut.B0_l == 1:
+        out = lorentz4pp_dipo(l, b_sol2)
+    elif ut.B0_l == 2:
+        out = lorentz4pp_quad(l, b_sol2)
+
+    return out
+
+
+
+def lorentz4pp_dipo( l, b_sol2 ):
     '''
     Returns the l-component of the Lorentz force.
-    Use it to compute the rate of working (power) of the Lorentz force. For quadrupolar B0
+    Use it to compute the rate of working (power) of the Lorentz force. For dipolar B0 only.
+    '''
+
+    m   = par.m
+    ll0 = ut.ell( m, par.lmax, ut.bsymm)
+    lp  = ll0[0]  # l's for poloidals
+    lt  = ll0[1]  # l's for toroidals
+
+    P = b_sol2[0]
+    T = b_sol2[1]
+
+    h0 = ut.h0(rk, par.B0, [par.beta, par.B0_l, par.ricb, 0])
+    h1 = ut.h1(rk, par.B0, [par.beta, par.B0_l, par.ricb, 0])
+    h2 = ut.h2(rk, par.B0, [par.beta, par.B0_l, par.ricb, 0])
+
+    cnorm = ut.B0_norm()
+
+    out_rad = np.zeros_like(rk, dtype='complex128')
+    out_con = np.zeros_like(rk, dtype='complex128')
+    out_tor = np.zeros_like(rk, dtype='complex128')
+
+    if l-1 in lp:
+
+        [ [ qlm0, _ ], [ slm0, slm1 ] ] = cheb2space_pol(l-1, lp, P, 1)
+
+        C_rad    = (-1 + l)*np.sqrt(l**2 - m**2)/(-1 + 2*l)
+        out_rad += C_rad*( -(h0*(qlm0/r2 + slm0/r2 - slm1/rk)) + (h2*slm0 + h1*(-qlm0/rk + 3*slm0/rk + slm1)) )
+
+        C_con    = np.sqrt(l**2 - m**2)/(l*(-1 + 2*l))
+        out_con += C_con*( (-2*h0*l*qlm0/r2 + qlm0*(2*h1/rk + h2) + 2*h0*(-1 + l)*(slm0/r2 + slm1/rk)) )
+
+    elif l-1 in lt:
+
+        [ tlm0, tlm1 ] = cheb2space_tor(l-1, lt, T, 1)
+
+        C_tor =  -(-1 + l)*np.sqrt(l**2 - m**2)/(l*(-1 + 2*l))
+        out_tor += C_tor*( h0*(-2 + l)*tlm0/r2 + h1*l*tlm0/rk - 2*h0*tlm1/rk )
+
+    if l in lt:
+
+        [ tlm0, tlm1 ] = cheb2space_tor(l, lt, T, 1)
+
+        out_rad += 1j*m*( h0*(-tlm0/r2 + tlm1/rk) + 3*h1*tlm0/rk + h2*tlm0 + h1*tlm1 )
+
+        out_con += 1j*m*( h0*(2 + l + l**2)*tlm0/r2 + h1*l*(1 + l)*tlm0/rk + 2*h0*tlm1/rk ) / (l*(1 + l))
+
+    elif l in lp:
+
+        [ [ qlm0, _ ], [ slm0, slm1 ] ] = cheb2space_pol(l, lp, P, 1)
+
+        out_tor += 1j*m*( qlm0*(2*h1/rk + h2) - 2*h0*(slm0/r2 + slm1/rk) ) / (l*(1 + l))
+
+    if l+1 in lp:
+
+        [ [ qlm0, _ ], [ slm0, slm1 ] ] = cheb2space_pol(l+1, lp, P, 1)
+
+        C_rad = (2 + l)*np.sqrt((1 + l - m)*(1 + l + m)) / (3 + 2*l)
+        out_rad += C_rad*( h0*(qlm0/r2 + slm0/r2 - slm1/rk) - (h2*slm0 + h1*(-qlm0/rk + 3*slm0/rk + slm1)) )
+
+        C_con = np.sqrt((1 + l - m)*(1 + l + m)) / ((1 + l)*(3 + 2*l))
+        out_con += C_con*( -2*h0*(1 + l)*qlm0/r2 - qlm0*(2*h1/rk + h2) + 2*h0*(2 + l)*(slm0/r2 + slm1/rk) )
+
+    elif l+1 in lt:
+
+        [ tlm0, tlm1 ] = cheb2space_tor(l+1, lt, T, 1)
+
+        C_tor = (2 + l)*np.sqrt((1 + l - m)*(1 + l + m)) / ((1 + l)*(3 + 2*l))
+        out_tor += C_tor*( (h0*(3 + l)*tlm0/r2 + h1*(1 + l)*tlm0/rk + 2*h0*tlm1/rk) )
+
+    return [out_rad * cnorm, out_con * cnorm, out_tor * cnorm]
+
+
+
+def lorentz4pp_quad( l, b_sol2 ):
+    '''
+    Returns the l-component of the Lorentz force.
+    Use it to compute the rate of working (power) of the Lorentz force. For quadrupolar B0 only.
     '''
     
     m   = par.m
@@ -676,6 +790,88 @@ def lorentz4pp( l, b_sol2 ):
 
 
 def induction4pp( l, u_sol2 ):
+
+    if   ut.B0_l == 1:
+        out = induction4pp_dipo(l, u_sol2)
+    elif ut.B0_l == 2:
+        out = induction4pp_quad(l, u_sol2)
+
+    return out
+
+
+
+def induction4pp_dipo( l, u_sol2 ):
+    '''
+    Returns the l-component of the induction term ∇×(𝐮×𝐁₀), dipolar B0
+    '''
+
+    m   = par.m
+    ll0 = ut.ell( m, par.lmax, par.symm)
+    lp  = ll0[0]  # l's for poloidals
+    lt  = ll0[1]  # l's for toroidals
+    ricb = par.ricb
+    rcmb = ut.rcmb
+
+    P = u_sol2[0]
+    T = u_sol2[1]
+
+    h0 = ut.h0(rk, par.B0, [par.beta, par.B0_l, ricb, 0])
+    h1 = ut.h1(rk, par.B0, [par.beta, par.B0_l, ricb, 0])
+    h2 = ut.h2(rk, par.B0, [par.beta, par.B0_l, ricb, 0])
+
+    cnorm = ut.B0_norm()
+
+    out_rad = np.zeros_like(rk, dtype='complex128')
+    out_con = np.zeros_like(rk, dtype='complex128')
+    out_tor = np.zeros_like(rk, dtype='complex128')
+
+    if l-1 in lp:
+
+        [ [ qlm0, qlm1], [slm0, slm1] ] =  cheb2space_pol(l-1, lp, P, 1)
+
+        out_rad += -(((1 + l)*np.sqrt(l**2 - m**2)*(h1*qlm0*rk + h0*(qlm0 - 2*(-1 + l)*slm0)))/((-1 + 2*l)*r2))
+
+        out_con += (np.sqrt(l**2 - m**2)*(-(qlm1*(h0 + h1*rk)) - qlm0*(2*h1 + h2*rk) + 2*h1*(-1 + l)*slm0 + 2*h0*(-1 + l)*slm1))/(l*(-1 + 2*l)*rk)
+
+    elif l-1 in lt:
+
+        [ tlm0, tlm1]  =  cheb2space_tor(l-1, lt, T, 1)
+
+        out_tor += -(((1 + 2*l)*(h1*(np.sqrt((l*(-1 + l**2))/(-1 + 4*l**2)) - 2*np.sqrt((1 - l**2)/(l - 4*l**3)))*rk*tlm0 + h0*(np.sqrt((l*(-1 + l**2))/(-1 + 4*l**2))*tlm0 - 2*np.sqrt((1 - l**2)/(l - 4*l**3))*rk*tlm1)))/(np.sqrt((l*(1 + l)*(-1 + 4*l**2))/((-1 + l)*(l**2 - m**2)))*r2))
+
+    if l in lt:
+
+        [ tlm0, tlm1]  =  cheb2space_tor(l, lt, T, 1)
+
+        out_rad += (2j*h0*m*tlm0)/r2
+
+        out_con += ((2j)*m*(h1*tlm0 + h0*tlm1))/(l*(1 + l)*rk)
+
+    elif l in lp:
+
+        [ [ qlm0, qlm1], [slm0, slm1] ] =  cheb2space_pol(l, lp, P, 1)
+
+        out_tor += ((-1j)*m*(h2*qlm0*r2 - h0*l*(1 + l)*slm0 + h1*rk*(2*qlm0 + qlm1*rk - (-2 + l + l**2)*slm0) + h0*rk*(qlm1 + 2*slm1)))/(l*(1 + l)*r2)
+
+    if l+1 in lp:
+
+        [ [ qlm0, qlm1], [slm0, slm1] ] =  cheb2space_pol(l+1, lp, P, 1)
+
+        out_rad += (l*np.sqrt((1 + l - m)*(1 + l + m))*(h1*qlm0*rk + h0*(qlm0 + 2*(2 + l)*slm0)))/((3 + 2*l)*r2)
+
+        out_con += (np.sqrt((1 + l - m)*(1 + l + m))*(h2*qlm0*rk + h1*(2*qlm0 + qlm1*rk + 2*(2 + l)*slm0) + h0*(qlm1 + 2*(2 + l)*slm1)))/((1 + l)*(3 + 2*l)*rk)
+
+    elif l+1 in lt:
+
+        [ tlm0, tlm1]  =  cheb2space_tor(l+1, lt, T, 1)
+
+        out_tor +=  ((1 + 2*l)*np.sqrt(((2 + l)*(1 + l - m)*(1 + l + m))/(3 + 4*l*(2 + l)))*(h1*(2*np.sqrt((l*(2 + l))/(3 + 11*l + 12*l**2 + 4*l**3)) + np.sqrt((l*(1 + l)*(2 + l))/(3 + 4*l*(2 + l))))*rk*tlm0 + h0*(np.sqrt((l*(1 + l)*(2 + l))/(3 + 4*l*(2 + l)))*tlm0 + 2*np.sqrt((l*(2 + l))/(3 + 11*l + 12*l**2 + 4*l**3))*rk*tlm1)))/(np.sqrt(l*(1 + l))*r2)
+
+    return [out_rad * cnorm, out_con * cnorm, out_tor * cnorm]
+
+
+
+def induction4pp_quad( l, u_sol2 ):
     '''
     Returns the l-component of the induction term ∇×(𝐮×𝐁₀), quadrupolar B0
     '''
@@ -791,7 +987,48 @@ def buoyancy4pp(l, lp, tsol2):
 
 
 
-def diagnose( usol2, bsol2, tsol2, csol2, Ra, Rb, ncpus):
+def pressure4pp(l, eigval, u_sol2):
+    '''
+    Returns the l-component of the pressure. Does NOT account for magnetic pressure yet
+    '''
+
+    m, Ek = par.m, par.Ek
+
+    ll0 = ut.ell( m, par.lmax, par.symm)
+    lp  = ll0[0]  # l's for poloidals
+    lt  = ll0[1]  # l's for toroidals
+    L = l*(l+1)
+
+    P = u_sol2[0]
+    T = u_sol2[1]
+
+    out = np.zeros_like(rk, dtype='complex128')
+
+    if l-1 in lt:
+
+        [ tlm0, _ ] = cheb2space_tor(l-1, lt, T, 1)
+
+        C = -2*(l-1)*np.sqrt((l-m)*(l+m))/(l*(2*l-1))
+        out += C*rk*tlm0
+
+    if l in lp:
+
+        [ [qlm0, _ , _ ], [ slm0, slm1, slm2 ]] = cheb2space_pol(l, lp, P, 2)
+
+        out += ((2j*m*rk/L) + 2*Ek/rk)*qlm0 + ((2j*m*rk/L) - (Ek*L/rk) - eigval*rk )*slm0 + 2*Ek*slm1 + rk*Ek*slm2
+
+    if l+1 in lt:
+
+        [ tlm0, _ ]  =  cheb2space_tor(l+1, lt, T, 1)
+
+        C = -2*(l+2)*np.sqrt((l+1-m)*(l+1+m))/((l+1)*(2*l+3))
+        out += C*rk*tlm0
+
+    return out
+
+
+
+def diagnose( usol2, bsol2, tsol2, csol2, Ra, Rb, ncpus, eigval):
     '''
     Computes kinetic energy, internal and kinetic energy dissipation,
     and input power from body forces. Integrated From r=Ra to r=Rb, and
@@ -833,7 +1070,7 @@ def diagnose( usol2, bsol2, tsol2, csol2, Ra, Rb, ncpus):
 
     if par.hydro:
         ppu = [ pool.apply_async( flow_worker,
-                args=( l, lp_u, lt_u, usol2, bsol2, tsol2, csol2, Ra, Rb, par.N, sqx)) for l in ll ]
+                args=( l, lp_u, lt_u, usol2, bsol2, tsol2, csol2, Ra, Rb, par.N, sqx, eigval)) for l in ll ]
         out_u = np.array([pp0.get() for pp0 in ppu])
     
     if par.magnetic:

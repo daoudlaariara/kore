@@ -72,13 +72,14 @@ def main(ncpus):
     KP          = np.zeros(success)
     KT          = np.zeros(success)
     Ro          = np.zeros(success)
-    brms        = np.zeros(success)
-    #press0      = np.zeros(success)
+    brmsCMB     = np.zeros(success)
+    brmsOut     = np.zeros(success)
+    press0      = np.zeros(success)
     #params      = np.zeros((success,53))
     # ------------------------------------------------------------------------------------------------------------------------
 
-    print('\n  ★    m    symm    ω      Ek     η       K         KP/K       KT/K        Ro    ')
-    print(  ' ‾‾‾ ‾‾‾‾‾ ‾‾‾‾‾‾ ‾‾‾‾‾‾ ‾‾‾‾‾‾ ‾‾‾‾‾ ‾‾‾‾‾‾‾‾‾‾ ‾‾‾‾‾‾‾‾‾‾ ‾‾‾‾‾‾‾‾‾‾ ‾‾‾‾‾‾‾‾‾‾')
+    print('\n  ★    m    symm    ω      Ek     η       K         KP/K       KT/K        Ro       |p_2m|    Br_rms_out[nT]')
+    print(  ' ‾‾‾ ‾‾‾‾‾ ‾‾‾‾‾‾ ‾‾‾‾‾‾ ‾‾‾‾‾‾ ‾‾‾‾‾ ‾‾‾‾‾‾‾‾‾‾ ‾‾‾‾‾‾‾‾‾‾ ‾‾‾‾‾‾‾‾‾‾ ‾‾‾‾‾‾‾‾‾‾ ‾‾‾‾‾‾‾‾‾‾  ‾‾‾‾‾‾‾‾‾‾‾‾‾‾')
 
 
     # Begin processing all solutions
@@ -119,12 +120,14 @@ def main(ncpus):
             KP[i] = np.sum( udgn[lpi,0])  # Poloidal kinetic energy
             KT[i] = np.sum( udgn[lti,0])  # Toroidal kinetic energy
             
-            [KE[i], Dkin0, Dint0, Wlor0, Wthm0, Wcmp0] = np.sum( udgn, 0)
+            [KE[i], Dkin0, Dint0, Wlor0, Wthm0, Wcmp0, _] = np.sum( udgn, 0)
             # Dkin[i] = par.OmgTau * par.Ek * Dkin0
             # Dint[i] = par.OmgTau * par.Ek * Dint0
             # Wlor[i] = par.OmgTau**2 * par.Le2 * Wlor0
             # Wthm[i] = par.OmgTau**2 * par.BV2 * Wthm0
             # Wcmp[i] = par.OmgTau**2 * par.BV2_comp * Wcmp0
+            press0[i] = udgn[6][np.where(ut.ll==2)[0][0]]  # get the pressure coefficient p_2m
+
             Ro[i]= np.sqrt((3/(2*np.pi)) * KE[i] / (1 - par.ricb**3))
             
             # Viscous torques
@@ -134,28 +137,30 @@ def main(ncpus):
             # press0[i] = udgn[6][0]
 
 
-        # if par.magnetic:
+        if par.magnetic:
 
-        #     [ ME0, Mdfs0, Indu0, brms[i] ] = np.sum( bdgn, 0)
-        #     ME[i]   = ME0   * par.OmgTau**2 * par.Le2
-        #     Indu[i] = Indu0 * par.OmgTau**2 * par.Le2
-        #     Mdfs[i] = par.OmgTau**3 * par.Le2 * par.Em * Mdfs0
+            [ ME0, Mdfs0, Indu0, brmsCMB[i], brmsOut[i]] = np.sum( bdgn, 0)
+            # ME[i]   = ME0   * par.OmgTau**2 * par.Le2
+            # Indu[i] = Indu0 * par.OmgTau**2 * par.Le2
+            # Mdfs[i] = par.OmgTau**3 * par.Le2 * par.Em * Mdfs0
 
-        #     # Magnetic torques
-        #     mtorq[i] = par.OmgTau**2 * par.Le2 * np.dot( ut.gamma_magnetic(), b_sol )[0]  # need to double check the constants here
-        #     mtorq_ic[i] = par.OmgTau**2 * par.Le2 * np.dot( ut.gamma_magnetic_ic(), b_sol )[0]
+            # # Magnetic torques
+            # mtorq[i] = par.OmgTau**2 * par.Le2 * np.dot( ut.gamma_magnetic(), b_sol )[0]  # need to double check the constants here
+            # mtorq_ic[i] = par.OmgTau**2 * par.Le2 * np.dot( ut.gamma_magnetic_ic(), b_sol )[0]
 
+            brmsCMB[i] = par.B0_scale * np.sqrt(brmsCMB[i])
+            brmsOut[i] = par.B0_scale * np.sqrt(brmsOut[i])
         
         
         # ------------------------------------------------------------------------------------------------------------------
-        print('  {:2d}    {:8.2e}    {:8.2e}    {:8.2e}      {:8.2e}     {:8.2e}       {:8.2e}         {:8.2e}       {:8.2e}        {:8.2e}    '.format( \
-               i, par.m, par.symm, w, par.Ek, par.ricb, KE[i], KP[i]/KE[i], KT[i]/KE[i], Ro[i]) )
+        print('  {:2d}    {:8.2e}    {:8.2e}    {:8.2e}      {:8.2e}     {:8.2e}       {:8.2e}         {:8.2e}       {:8.2e}      {:8.2e}      {:8.2e}       {:8.2e}'.format( \
+               i, par.m, par.symm, w, par.Ek, par.ricb, KE[i], KP[i]/KE[i], KT[i]/KE[i], Ro[i], press0[i], brmsOut[i]) )
         # ------------------------------------------------------------------------------------------------------------------
 
         #toc = timer()
 
     # ------------------------------------------------------------------------------------------------------------------------
-    print(  ' ‾‾‾ ‾‾‾‾‾ ‾‾‾‾‾‾ ‾‾‾‾‾‾ ‾‾‾‾‾‾ ‾‾‾‾‾ ‾‾‾‾‾‾‾‾‾‾ ‾‾‾‾‾‾‾‾‾‾ ‾‾‾‾‾‾‾‾‾‾ ‾‾‾‾‾‾‾‾‾‾')
+    print(  ' ‾‾‾ ‾‾‾‾‾ ‾‾‾‾‾‾ ‾‾‾‾‾‾ ‾‾‾‾‾‾ ‾‾‾‾‾ ‾‾‾‾‾‾‾‾‾‾ ‾‾‾‾‾‾‾‾‾‾ ‾‾‾‾‾‾‾‾‾‾ ‾‾‾‾‾‾‾‾‾‾ ‾‾‾‾‾‾‾‾‾‾  ‾‾‾‾‾‾‾‾‾‾‾‾‾‾')
     return 0
 
 

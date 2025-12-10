@@ -172,6 +172,7 @@ cnorm = 'rms_cmb'                     # Sets the radial rms field at the CMB as 
 # cnorm = 0.005061566801979833          # Luo_S2 ricb = 0, unit mag_energy
 # cnorm = 0.0158567582314039            # Luo_S2 ricb = 0, rms_Bs=1
 
+rout = 1.105 # Radius for magnetic field extrapolation (for insulating mantle), >1
 B0_scale = 1200 # nT
 
 # ----------------------------------------------------------------------------------------------------------------------
