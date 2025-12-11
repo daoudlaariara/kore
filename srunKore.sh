@@ -56,12 +56,9 @@ ncpus=$SLURM_CPUS_PER_TASK
 # Check number of arguments
 if [ $# -eq 0 ]; then
     sed -i 's,^\('ncpus'[ ]*=\).*,\1'$ncpus',' bin/parameters.py	
-
-    folder="run_default"
-    result_folder=$GLOBALSCRATCH/results/kore/$folder
+    folder="."
 
 elif [ $# -eq 5 ]; then
-    pref=$1
     var=$2
     exp=$3
     startvalue=$4
@@ -69,7 +66,7 @@ elif [ $# -eq 5 ]; then
 
     k=$(echo "$startvalue + ($SLURM_ARRAY_TASK_ID * $step)" | bc | awk '{printf "%f", $0}')
     if [ "$exp" = 'e' ]; then
-            value='10**'$k # powers of ten
+        value='10**'$k # powers of ten
     else
         value=$k # linear
     fi
@@ -77,7 +74,7 @@ elif [ $# -eq 5 ]; then
     #------------------------------------------------------------------------------------------------------  
 
     # Create the run directories
-    folder=$pref$value
+    folder=${var}_${value}
     echo $folder $var=$value
     mkdir $LOCALSCRATCH/$folder
     cd $LOCALSCRATCH/$folder
@@ -86,9 +83,6 @@ elif [ $# -eq 5 ]; then
     # modify variables
     sed -i 's,^\('$var'[ ]*=\).*,\1'$value',' bin/parameters.py	
     sed -i 's,^\('ncpus'[ ]*=\).*,\1'$ncpus',' bin/parameters.py
-
-    # define global scratch destination
-    result_folder=$GLOBALSCRATCH/results/kore/$SLURM_ARRAY_JOB_ID/$folder	
 
     srun sleep 0.2
 else
@@ -101,13 +95,10 @@ fi
 srun ./bin/submatrices.py $ncpus >> out0
 srun ./bin/assemble.py >> out1
 srun ./bin/solve.py $opts >> out2
-srun ./bin/postprocess.py $ncpus >> ${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}.out
-
-# Copy results back to global scratch
-# define global scratch destination
-result_folder=$GLOBALSCRATCH/results/kore/$folder
+srun ./bin/postprocess.py $ncpus >> run${SLURM_ARRAY_TASK_ID}.out
 
 # copy results back to global scratch
+result_folder=$GLOBALSCRATCH/results/kore/$1/${folder}
 mkdir -p $result_folder
 
 cp -r bin/parameters.py $result_folder/

@@ -493,9 +493,9 @@ def flow_worker( l, lp, lt, u_sol2, b_sol2, t_sol2, c_sol2, Ra, Rb, N, sqx, eigv
     Wthm_l = cg_quad( wther, Ra, Rb, N, sqx )
     Wcmp_l = cg_quad( wcomp, Ra, Rb, N, sqx )   
 
-    press_l = pressure4pp(l, eigval, u_sol2)[0]  # the l component of the pressure at the cmb
+    #press_l = pressure4pp(l, eigval, u_sol2)[0]  # the l component of the pressure at the cmb
 
-    return [ Kene_l, Dkin_l, Dint_l, Wlor_l, Wthm_l, Wcmp_l, np.abs(press_l) ]
+    return [ Kene_l, Dkin_l, Dint_l, Wlor_l, Wthm_l, Wcmp_l]
 
 
 

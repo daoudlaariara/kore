@@ -126,7 +126,7 @@ def main(ncpus):
             # Wlor[i] = par.OmgTau**2 * par.Le2 * Wlor0
             # Wthm[i] = par.OmgTau**2 * par.BV2 * Wthm0
             # Wcmp[i] = par.OmgTau**2 * par.BV2_comp * Wcmp0
-            press0[i] = udgn[6][np.where(ut.ll==2)[0][0]]  # get the pressure coefficient p_2m
+            press0[i] = np.abs(upp.pressure4pp(2, sigma+1j*w, u_sol2)[0])  # get the pressure coefficient |p_2m| at CMB
 
             Ro[i]= np.sqrt((3/(2*np.pi)) * KE[i] / (1 - par.ricb**3))
             
